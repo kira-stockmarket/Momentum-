@@ -21,11 +21,15 @@ def build_dataset():
         try:
             print(f"Processing {ticker}...")
             df = yf.download(ticker, period="max", progress=False)
+            
             if df.empty or len(df) < 500:
                 continue
+                
+            # FIX: Flatten the multi-level columns from recent yfinance versions
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
             
             # Massive Feature Engineering using the 'ta' library
-            # This generates ~86 features instantly (momentum, volume, volatility, trend, etc.)
             df = add_all_ta_features(
                 df, open="Open", high="High", low="Low", close="Close", volume="Volume", fillna=True
             )
@@ -42,10 +46,14 @@ def build_dataset():
         except Exception as e:
             print(f"Failed {ticker}: {e}")
             
+    if not all_data:
+        print("ERROR: No data was successfully downloaded and processed.")
+        return
+        
     master_df = pd.concat(all_data)
-    master_df.sort_index(inplace=True) # Sort chronologically for walk-forward
+    master_df.sort_index(inplace=True) 
     
-    # Save to Parquet format (much faster and smaller than CSV for ML datasets)
+    # Save to Parquet format
     master_df.to_parquet('data/nifty100_features.parquet')
     print(f"Data saved successfully. Total rows: {len(master_df)}, Total Features: {len(master_df.columns)}")
 
